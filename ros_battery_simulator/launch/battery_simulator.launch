@@ -2,7 +2,7 @@
 
   <node pkg="ros_battery_simulator" type="battery_action_node.py" name="battery_action_node" output="screen">
             <param name="capacity_a_h" value="8." />
-            <param name="param_max_charge_rate_a_h" value="1." />
+            <param name="param_max_charge_rate_a_h" value="20." />
             <param name="continuous_discharge_rate_a_h" value="8." />
   </node>
   

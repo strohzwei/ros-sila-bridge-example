@@ -8,15 +8,16 @@ rospy.init_node('battery_simulator')
 
 # params
 PARAM_CAPACITY_A_H = float(rospy.get_param("~capacity_a_h",8))
-PARAM_MAX_CHARGE_RATE_A_H = float(rospy.get_param("~param_max_charge_rate_a_h",1))
+PARAM_MAX_CHARGE_RATE_A_H = float(rospy.get_param("~param_max_charge_rate_a_h",20))
 PARAM_CONTINUOUS_DISCHARGE_RATE_A_H = float(rospy.get_param("~continuous_discharge_rate_a_h",8))
     
 class ChargeActionServer(object):
     
-    def __init__(self, name):
+    def __init__(self, name, battery):
         self._feedback = ChargeFeedback()
         self._result = ChargeResult()
         self._action_name = name
+        self.battery = battery
         self._as = actionlib.SimpleActionServer(self._action_name, ChargeAction, execute_cb=self.execute_callback, auto_start = False)
         self._as.start()
         
@@ -26,20 +27,36 @@ class ChargeActionServer(object):
         if goal.charge_rate_a_h > PARAM_MAX_CHARGE_RATE_A_H:
             rospy.logerr("Maximum discharge/charge rate exceeded (%s > %s)." % (goal.charge_rate_a_h, PARAM_MAX_CHARGE_RATE_A_H))
             return self._as.set_aborted(self._result)
-
-
+            
         try:
-            self._feedback.in_progress = True
-            self._as.publish_feedback(self._feedback)
-            lift_service(goal.lift_set)
+            self.battery.set_charging(goal.charge_rate_a_h)
+            _r = rospy.Rate(1) # hz
+            percentage = 0.
+            self._feedback.percentage = 0.
+            while percentage < 100.:
+                _r.sleep()
+                percentage, _, _ = self.battery.status()
+                if self._feedback.percentage > percentage:
+                    raise Exception("Still discharging abort.")
+                    
+                self._feedback.percentage = percentage
+                self._as.publish_feedback(self._feedback)
+                if rospy.is_shutdown():
+                    raise Exception("Ros shutdown.")
+                    
+            self._feedback.percentage = 100.
+            self._as.publish_feedback(self._feedback)   
+             
+            self.battery.set_charging(0.)
+            self._result.success = True
+            
+            return self._as.set_succeeded(self._result)
+            
         except rospy.ServiceException, e:
             rospy.logerr("failed: %s" %  e)
             return self._as.set_aborted(self._result)
+       
         
-        self._feedback.in_progress = False
-        self._as.publish_feedback(self._feedback)
-        self._result.success = True
-        return self._as.set_succeeded(self._result)
 
 def synchronized(fn):
     def mutex_fn(self, *arg, **kws):
@@ -71,20 +88,19 @@ class Battery:
         
         if self.percentage < 0.:
             self.percentage = 0.
+        if self.percentage > 100.:
+            self.percentage = 100.
 
     @synchronized
     def status(self):  
         return self.percentage, self.charging, self.discharging
 
     @synchronized
-    def charging(self, rate_a_h):
-        if rate_a_h == 0:
-            self.charging = None
-            return
+    def set_charging(self, rate_a_h):
         self.charging = rate_a_h
 
 bat = Battery()
-#server = ChargeActionServer(rospy.get_name())
+server = ChargeActionServer(rospy.get_name(), bat)
 
 bat_status_pub = rospy.Publisher("status", Status, queue_size=1)
 
