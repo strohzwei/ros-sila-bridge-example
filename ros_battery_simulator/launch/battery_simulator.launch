@@ -1,0 +1,12 @@
+<launch>
+
+  <node pkg="ros_battery_simulator" type="battery_action_node.py" name="battery_action_node" output="screen">
+            <param name="capacity_a_h" value="8." />
+            <param name="param_max_charge_rate_a_h" value="1." />
+            <param name="continuous_discharge_rate_a_h" value="8." />
+  </node>
+  
+  
+  <node name = "rqt_dashboard" pkg = "rqt_gui" type = "rqt_gui" respawn = "false" output = "screen" args = "--force-discover --perspective-file $(find ros_battery_simulator)/rqt_config/chart.perspective"/>
+  
+</launch>

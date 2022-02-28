@@ -1,0 +1,9 @@
+# goal definition
+# charge in ampere per hour
+float32 charge_rate_a_h
+---
+# result definition
+bool success
+---
+# feedback
+float32 percentage
